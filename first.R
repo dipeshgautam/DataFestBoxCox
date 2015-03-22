@@ -10,16 +10,14 @@ check_packages = function(names)
 }
 check_packages(c("data.table","lubridate","XML","dplyr","bit64","dummies","zipcode","sp","rgdal","maptools","rgeos","raster","stringr","rjson","reshape"))
 
-config <- suppressWarnings(tbl_df(fread("~/DataFest2015/configuration.csv", stringsAsFactors = FALSE)))
-lead <- suppressWarnings(tbl_df(fread("~/DataFest2015/leads.csv", stringsAsFactors = FALSE)))
-visitor <- suppressWarnings(tbl_df(fread("~/DataFest2015/visitor.csv", stringsAsFactors = FALSE)))
-trans <- suppressWarnings(tbl_df(fread("~/DataFest2015/transactions.csv", stringsAsFactors = FALSE))) 
-income <- suppressWarnings(tbl_df(fread("~/DataFest2015/12zpallnoagi.csv", stringsAsFactors = FALSE))) 
-states <- suppressWarnings(tbl_df(fread("~/DataFest2015/us_states.csv", stringsAsFactors = FALSE, header=F))) 
+#config <- suppressWarnings(tbl_df(fread("~/DataFestBoxCox/configuration.csv", stringsAsFactors = FALSE)))
+lead <- suppressWarnings(tbl_df(fread("~/DataFestBoxCox/leads.csv", stringsAsFactors = FALSE)))
+visitor <- suppressWarnings(tbl_df(fread("~/DataFestBoxCox/visitor.csv", stringsAsFactors = FALSE)))
+#trans <- suppressWarnings(tbl_df(fread("~/DataFestBoxCox/transactions.csv", stringsAsFactors = FALSE))) 
+income <- suppressWarnings(tbl_df(fread("~/DataFestBoxCox/12zpallnoagi.csv", stringsAsFactors = FALSE))) 
+states <- suppressWarnings(tbl_df(fread("~/DataFestBoxCox/us_states.csv", stringsAsFactors = FALSE, header=F))) 
 colnames(states) = c('state1', 'state', 'STATE')
 states$STATE1 = NULL
-
-
 
 theurl <- "http://www.gasbuddy.com/GB_Price_List.aspx?cntry=USA"
 tables <- readHTMLTable(theurl)
@@ -81,38 +79,125 @@ cluster = as.data.frame(kmeans(mydata,centers=15)$cluster)
 visitor1=cbind(visitor1,cluster)
 
 visitor1 <- rename(visitor1, replace=c("kmeans(mydata, centers = 15)$cluster" = "cluster"))
-
+vis=visitor1[,c('visitor_key','cluster')]
+vis$visitor_key = as.character(vis$visitor_key)
 
 #group=as.data.frame(plyr::count(lead$visitor_key))
 #colnames(group) = c("visitor_key", "count")
 
+#for trucks or any bodytype
+
+lea=lead[,c('visitor_key','bodytype')]
+lea$visitor_key = as.character(lea$visitor_key)
+final1=inner_join(vis,lea)
+
 trucks=rep(0,15)
 for(i in 1:15)
 {
-  data1=visitor1[visitor1$cluster==i,]
-  lea=lead[,c('visitor_key','bodytype')]
-  final1=inner_join(data1,lea)
-  group=as.data.frame(plyr::count(final1$bodytype))
-  trucks[i]=(group[group$x=='HB',]$freq)/sum(group[group$x!="",]$freq)
+  data1=final1[final1$cluster==i,]
+  group=as.data.frame(plyr::count(data1$bodytype))
+  trucks[i]=(group[group$x=='Truck',]$freq)/sum(group[group$x!="",]$freq)
 }
   
+#for msrp
 
-#vis=visitor[,c('visitor_key')]
-#vis$visitor_key = as.character(vis$visitor_key)
-#fin1=inner_join(vis,final1)
-#reg1=lm(fin1$count~fin1$clk_total)
-#summary(reg1)
-#cor1=cor(fin1$count,fin1$clk_total)
-#cor1
+lea=lead[,c('visitor_key','msrp')]
+lea$visitor_key = as.character(lea$visitor_key)
+final1=inner_join(vis,lea)
 
-data1=visitor1[visitor1$cluster==14,]
-final1=inner_join(group,data1)
-vis=visitor[,c('visitor_key','clk_total')]
-vis$visitor_key = as.character(vis$visitor_key)
-fin1=inner_join(vis,final1)
-reg1=lm(fin1$count~fin1$clk_total)
-cor1=cor(fin1$count,fin1$clk_total)
-cor1
+fin1=final1[!is.na(final1$msrp),]
+n=rep(0,nrow(fin1))
+fin1=cbind(fin1,n)
+fin1=as.data.frame(fin1)
+
+for(i in 1:nrow(fin1)){
+  if(fin1[i,3]>50000)
+  {
+    fin1[i,4]=1
+  }
+}
+ 
+msr=rep(0,15)
+for(i in 1:15)
+{
+  data1=fin1[fin1$cluster==i,]
+  group=as.data.frame(plyr::count(data1$n))
+  msr[i]=((group[group$x=='1',]$freq)/sum(group[group$x!="",]$freq))*100
+}
+
+#for session count (to see customer retention)
+
+visi=visitor[,c('visitor_key','session_count')]
+visi$visitor_key = as.character(visi$visitor_key)
+final1=inner_join(vis,visi)
+
+fin1=final1[!is.na(final1$session_count),]
+n=rep(0,nrow(fin1))
+fin1=cbind(fin1,n)
+fin1=as.data.frame(fin1)
+
+for(i in 1:nrow(fin1)){
+  if(fin1[i,3]>5)
+  {
+    fin1[i,4]=1
+  }
+}
+
+ses=rep(0,15)
+for(i in 1:15)
+{
+  data1=fin1[fin1$cluster==i,]
+  group=as.data.frame(plyr::count(data1$n))
+  ses[i]=((group[group$x=='1',]$freq)/sum(group[group$x!="",]$freq))*100
+}
+
+#total dwell time
+#for session count (to see customer retention)
+
+visi=visitor[,c('visitor_key','tot_dwell_time')]
+visi$visitor_key = as.character(visi$visitor_key)
+final1=inner_join(vis,visi)
+
+fin1=final1[!is.na(final1$tot_dwell_time),]
+n=rep(0,nrow(fin1))
+fin1=cbind(fin1,n)
+fin1=as.data.frame(fin1)
+
+for(i in 1:nrow(fin1)){
+  if(fin1[i,3]>5000)
+  {
+    fin1[i,4]=1
+  }
+}
+
+time=rep(0,15)
+for(i in 1:15)
+{
+  data1=fin1[fin1$cluster==i,]
+  group=as.data.frame(plyr::count(data1$n))
+  time[i]=((group[group$x=='1',]$freq)/sum(group[group$x!="",]$freq))*100
+}
+
+
+#Target based ads using clustering
+
+#1)Outside data for customers' purchasing power parity (gas price as price index + income)
+
+#2)K-means clustering based on platform, entry chanel, New/Used..., purchasing power
+
+#3)Established that more the ad clicks more leads
+
+#4)Certain clusters have more high-msrp (>50000) leads so target those ads for them
+
+#5)Awesome trend in session_count (>5)
+
+#6)Negative corrleation between price and session count
+
+#7)Also saw trend in total dwell time
+
+#If you find any anamoly like sudden drop in leads of a particular brand in a particular
+#cluster then display more of those ads in that cluster
+
 
 
 
